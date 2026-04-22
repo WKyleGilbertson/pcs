@@ -4,11 +4,8 @@
 #include "PCSEngine.hpp"
 #include "G2INIT.h"
 
-#undef KISS_FFT_ERROR
-extern "C"
-{
-    void KISS_FFT_ERROR(const char *msg)
-    {
+extern "C" {
+    void KISS_FFT_ERROR(const char *msg) {
         std::cerr << "KissFFT Error: " << msg << std::endl;
     }
 }
@@ -17,52 +14,45 @@ PCSEngine::PCSEngine(double sampleFreq)
     : m_sampleFreq(sampleFreq),
       m_nco(10, (float)sampleFreq),
       m_workspace(16384),
-      m_accumulatedMag(16384)
+      m_accumulatedMag(16384),
+      m_codeFftCurrent(16384)
 {
-    // Allocate KissFFT plans
     m_cfg_fwd = kiss_fft_alloc(16384, 0, NULL, NULL);
     m_cfg_inv = kiss_fft_alloc(16384, 1, NULL, NULL);
 }
 
-PCSEngine::~PCSEngine()
-{
+PCSEngine::~PCSEngine() {
     free(m_cfg_fwd);
     free(m_cfg_inv);
 }
 
-void PCSEngine::initPrn(int prn)
-{
+void PCSEngine::initPrn(int prn) {
     if (codeFfts.find(prn) != codeFfts.end())
         return;
 
-    std::vector<kiss_fft_cpx> codeVec(N);
     G2INIT sv(prn, 0);
-    for (size_t idx = 0; idx < N; idx++)
-    {
+    for (size_t idx = 0; idx < N; idx++) {
         int chipIdx = (idx / 16) % 1023;
-        codeVec[idx].r = (double)sv.CODE[chipIdx];
-        codeVec[idx].i = 0.0;
+        m_codeFftCurrent[idx].r = (float)sv.CODE[chipIdx];
+        m_codeFftCurrent[idx].i = 0.0f;
     }
 
-    // Forward FFT for the code
-    kiss_fft(m_cfg_fwd, codeVec.data(), codeVec.data());
+    kiss_fft(m_cfg_fwd, m_codeFftCurrent.data(), m_codeFftCurrent.data());
 
-    // Conjugate for the circular correlation
-    for (size_t idx = 0; idx < N; idx++)
-    {
-        codeVec[idx].i = -codeVec[idx].i;
+    for (size_t idx = 0; idx < N; idx++) {
+        m_codeFftCurrent[idx].i = -m_codeFftCurrent[idx].i; // Conjugate
     }
 
-    codeFfts[prn] = std::move(codeVec);
+    codeFfts[prn] = m_codeFftCurrent;
 }
 
-AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &rawData,
+// Ensure the signature matches the .hpp exactly
+AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
                             float centerFreq, int binRange, float binWidth)
 {
     AcqResult bestResult = {0, 0, -99.0f, -99.0f};
     int numBlocks = (int)(rawData.size() / N);
-    if (numBlocks == 0)
-        return bestResult;
+    if (numBlocks == 0) return bestResult;
 
     initPrn(prn);
     const std::vector<kiss_fft_cpx> &currentCodeFft = codeFfts[prn];
@@ -71,14 +61,13 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &raw
     {
         std::fill(m_accumulatedMag.begin(), m_accumulatedMag.end(), 0.0f);
 
-        // Update NCO for this Doppler bin
-        m_nco.SetFrequency((float)(centerFreq + (bin * binWidth)));
+        m_nco.SetFrequency(centerFreq + (bin * binWidth));
         m_nco.m_phase = 0;
 
         for (int b = 0; b < numBlocks; b++)
         {
-            // Safety check: Pointer to the start of this block
-            const std::complex<float> *blockStart = &rawData[b * N];
+            // Now rawData is already kiss_fft_cpx, so no complex conversion needed
+            const kiss_fft_cpx *blockStart = &rawData[b * N];
 
             for (size_t idx = 0; idx < N; idx++)
             {
@@ -86,18 +75,15 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &raw
                 float c = (float)m_nco.cosine(ncoIdx);
                 float s = (float)m_nco.sine(ncoIdx);
 
-                // Explicitly pull real/imag to avoid any hidden padding issues
-                float re = (float)blockStart[idx].real();
-                float im = (float)blockStart[idx].imag();
+                float re = blockStart[idx].r;
+                float im = blockStart[idx].i;
 
                 m_workspace[idx].r = re * c - im * s;
                 m_workspace[idx].i = re * s + im * c;
             }
 
-            // Forward FFT (Time -> Freq)
             kiss_fft(m_cfg_fwd, m_workspace.data(), m_workspace.data());
 
-            // Point-wise complex multiplication (Correlation in Freq Domain)
             for (size_t idx = 0; idx < N; idx++)
             {
                 float a = m_workspace[idx].r;
@@ -105,34 +91,28 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &raw
                 float c = currentCodeFft[idx].r;
                 float d = currentCodeFft[idx].i;
 
-                // (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
                 m_workspace[idx].r = a * c - b * d;
                 m_workspace[idx].i = a * d + b * c;
             }
 
-            // Inverse FFT (Freq -> Time correlation)
             kiss_fft(m_cfg_inv, m_workspace.data(), m_workspace.data());
 
             for (size_t idx = 0; idx < N; idx++)
             {
-                // Magnitude squared is faster and avoids sqrt in the inner loop
                 float r = m_workspace[idx].r;
                 float i = m_workspace[idx].i;
-                float mag = std::sqrt(r * r + i * i);
-                m_accumulatedMag[idx] += mag;
+                m_accumulatedMag[idx] += std::sqrtf(r * r + i * i);
             }
         }
 
-        // Peak detection (mag is currently sum of mags)
-        float maxMag = 0;
+        float maxMag = 0.0f;
         int peakIndex = 0;
-        float sumPower = 0;
+        float sumPower = 0.0f;
+        const float norm = 1.0f / (float)(N * numBlocks);
 
         for (size_t idx = 0; idx < N; idx++)
         {
-            // Correct normalization for KissFFT:
-            // The IFFT result is N times larger than the correlation result.
-            float mag = m_accumulatedMag[idx] / (float)(N * numBlocks);
+            float mag = m_accumulatedMag[idx] * norm;
             float pwr = mag * mag;
             sumPower += pwr;
 
@@ -145,7 +125,7 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &raw
 
         float peakPower = maxMag * maxMag;
         float avgNoisePower = (sumPower - peakPower) / (float)(N - 1);
-        float snr = (avgNoisePower > 1e-18) ? 10.0f * std::log10(peakPower / avgNoisePower) : -99.0f;
+        float snr = (avgNoisePower > 1e-12f) ? 10.0f * std::log10f(peakPower / avgNoisePower) : -99.0f;
 
         if (snr > bestResult.snr)
         {

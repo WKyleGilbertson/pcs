@@ -3,11 +3,12 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <future>
 #include "version.h"
 #include "PCSEngine.hpp"
 
 // Updated to handle multiple blocks and your specific 16368-sample read
-void stuffVector(std::vector<std::complex<float>> &vec, FILE *fp, int numMs)
+void stuffVector(std::vector<kiss_fft_cpx> &vec, FILE *fp, int numMs)
 {
   int8_t buffer[32736]; // 16368 samples * 2 bytes
   for (int ms = 0; ms < numMs; ms++)
@@ -19,12 +20,14 @@ void stuffVector(std::vector<std::complex<float>> &vec, FILE *fp, int numMs)
     size_t offset = ms * 16384;
     for (size_t idx = 0; idx < 16368; idx++)
     {
-      vec[offset + idx] = std::complex<float>((float)buffer[2 * idx], (float)buffer[2 * idx + 1]);
+      vec[offset + idx].r = (float)buffer[2 * idx];
+      vec[offset + idx].i = (float)buffer[2 * idx + 1];
     }
     // Zero-pad the remaining 16 samples of this millisecond block
     for (size_t idx = 16368; idx < 16384; idx++)
     {
-      vec[offset + idx] = std::complex<float>(0, 0);
+      vec[offset + idx].r = 0.0f;
+      vec[offset + idx].i = 0.0f;
     }
   }
 }
@@ -94,7 +97,9 @@ int main(int argc, char *argv[])
   }
 
   PCSEngine PCSEngine(16.368e6);
-  std::vector<std::complex<float>> data(16384 * numMs);
+  // We don't use the global PCSEngine for searching anymore to avoid thread conflicts,
+  // but it's fine to keep it here for initialization or delete it.
+  std::vector<kiss_fft_cpx> data(16384 * numMs);
 
   FILE *IN = fopen(filename.c_str(), "rb");
   if (!IN)
@@ -106,31 +111,46 @@ int main(int argc, char *argv[])
   fclose(IN);
 
   printf("Searching %d ms of data from: %s\n", numMs, filename.c_str());
-  printf("------------------------------------------------------------------\n");
-  printf("PRN | Bin | Freq Offset | Peak Index | Chip Phase | SNR (dB)\n");
-  printf("------------------------------------------------------------------\n");
+   
+  // Start timing the entire sky search
+// Start timing the entire sky search
+  auto skyStart = std::chrono::high_resolution_clock::now();
+// Start timing the entire sky search
+
+  std::vector<std::pair<int, std::future<AcqResult>>> futures;
 
   for (int prn : prnsToSearch)
   {
-    PCSEngine.initPrn(prn);
+    // Define the task separately. 
+    // We use [=, &data] to capture prn by value and data by reference.
+    auto searchTask = [prn, &data]() -> AcqResult {
+        // Use ::PCSEngine to explicitly refer to the CLASS, not a variable
+        ::PCSEngine threadEngine(16.368e6);
+        return threadEngine.search(prn, data, 4.092e6f, 20, 500.0f);
+    };
 
-    // Start timing
-    auto start = std::chrono::high_resolution_clock::now();
-
-    AcqResult result = PCSEngine.search(prn, data, 4.092e6, 20, 500);
-
-    auto end = std::chrono::high_resolution_clock::now();
-
-    // Calculate stats
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    int totalBins = (20 * 2) + 1; // -20 to +20 inclusive
-    double usPerBin = (double)duration / totalBins;
-
-    printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f | %6.1f ms (%4.0f us/bin)\n",
-           prn, result.bin, result.bin * 500.0, result.peakIndex,
-           result.peakIndex / 16.0, result.snr,
-           (double)duration / 1000.0, usPerBin);
+    // Move the future creation outside the make_pair call to help MSVC deduction
+    std::future<AcqResult> f = std::async(std::launch::async, searchTask);
+    futures.push_back(std::make_pair(prn, std::move(f)));
   }
 
+  printf("PRN | Bin | Freq Offset | Peak Index | Chip Phase | SNR (dB)\n");
+  printf("------------------------------------------------------------------\n");
+
+  for (auto &f : futures)
+  {
+    int prn = f.first;
+    AcqResult result = f.second.get(); 
+
+    printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f\n",
+           prn, result.bin, (float)result.bin * 500.0f, result.peakIndex,
+           (float)result.peakIndex / 16.0f, result.snr);
+  }
+
+  auto skyEnd = std::chrono::high_resolution_clock::now();
+  auto totalDuration = std::chrono::duration_cast<std::chrono::milliseconds>(skyEnd - skyStart).count();
+
+  printf("------------------------------------------------------------------\n");
+  printf("Total Sky Search Time: %lld ms for %zu satellites\n", totalDuration, prnsToSearch.size());
   return 0;
 }
