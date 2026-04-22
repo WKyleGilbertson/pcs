@@ -20,7 +20,7 @@ struct AcqResult {
 class PCSEngine {
 private:
     const size_t N = 16384;
-    double m_sampleFreq;
+    float m_sampleFreq;
     NCO m_nco; 
 
     kiss_fft_cfg m_cfg_fwd;
@@ -35,8 +35,8 @@ public:
     PCSEngine(double sampleFreq);
     ~PCSEngine();
     void initPrn(int prn);
-    AcqResult search(int prn, const std::vector<std::complex<double>> &rawData, 
-                     double centerFreq, int binRange, float binWidth);
+    AcqResult search(int prn, const std::vector<std::complex<float>> &rawData, 
+                     float centerFreq, int binRange, float binWidth);
 };
 
 #endif

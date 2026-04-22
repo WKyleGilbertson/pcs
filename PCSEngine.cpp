@@ -56,10 +56,10 @@ void PCSEngine::initPrn(int prn)
     codeFfts[prn] = std::move(codeVec);
 }
 
-AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &rawData,
-                            double centerFreq, int binRange, float binWidth)
+AcqResult PCSEngine::search(int prn, const std::vector<std::complex<float>> &rawData,
+                            float centerFreq, int binRange, float binWidth)
 {
-    AcqResult bestResult = {0, 0, -99.0, -99.0};
+    AcqResult bestResult = {0, 0, -99.0f, -99.0f};
     int numBlocks = (int)(rawData.size() / N);
     if (numBlocks == 0)
         return bestResult;
@@ -78,7 +78,7 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
         for (int b = 0; b < numBlocks; b++)
         {
             // Safety check: Pointer to the start of this block
-            const std::complex<double> *blockStart = &rawData[b * N];
+            const std::complex<float> *blockStart = &rawData[b * N];
 
             for (size_t idx = 0; idx < N; idx++)
             {

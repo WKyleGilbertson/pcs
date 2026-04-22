@@ -7,7 +7,7 @@
 #include "PCSEngine.hpp"
 
 // Updated to handle multiple blocks and your specific 16368-sample read
-void stuffVector(std::vector<std::complex<double>> &vec, FILE *fp, int numMs)
+void stuffVector(std::vector<std::complex<float>> &vec, FILE *fp, int numMs)
 {
   int8_t buffer[32736]; // 16368 samples * 2 bytes
   for (int ms = 0; ms < numMs; ms++)
@@ -19,12 +19,12 @@ void stuffVector(std::vector<std::complex<double>> &vec, FILE *fp, int numMs)
     size_t offset = ms * 16384;
     for (size_t idx = 0; idx < 16368; idx++)
     {
-      vec[offset + idx] = std::complex<double>((double)buffer[2 * idx], (double)buffer[2 * idx + 1]);
+      vec[offset + idx] = std::complex<float>((float)buffer[2 * idx], (float)buffer[2 * idx + 1]);
     }
     // Zero-pad the remaining 16 samples of this millisecond block
     for (size_t idx = 16368; idx < 16384; idx++)
     {
-      vec[offset + idx] = std::complex<double>(0, 0);
+      vec[offset + idx] = std::complex<float>(0, 0);
     }
   }
 }
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
   }
 
   PCSEngine PCSEngine(16.368e6);
-  std::vector<std::complex<double>> data(16384 * numMs);
+  std::vector<std::complex<float>> data(16384 * numMs);
 
   FILE *IN = fopen(filename.c_str(), "rb");
   if (!IN)
