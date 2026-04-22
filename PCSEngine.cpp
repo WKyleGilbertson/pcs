@@ -69,7 +69,7 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
 
     for (int bin = -binRange; bin <= binRange; bin++)
     {
-        std::fill(m_accumulatedMag.begin(), m_accumulatedMag.end(), 0.0);
+        std::fill(m_accumulatedMag.begin(), m_accumulatedMag.end(), 0.0f);
 
         // Update NCO for this Doppler bin
         m_nco.SetFrequency((float)(centerFreq + (bin * binWidth)));
@@ -83,12 +83,12 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
             for (size_t idx = 0; idx < N; idx++)
             {
                 uint32_t ncoIdx = m_nco.clk();
-                double c = (double)m_nco.cosine(ncoIdx);
-                double s = (double)m_nco.sine(ncoIdx);
+                float c = (float)m_nco.cosine(ncoIdx);
+                float s = (float)m_nco.sine(ncoIdx);
 
                 // Explicitly pull real/imag to avoid any hidden padding issues
-                double re = blockStart[idx].real();
-                double im = blockStart[idx].imag();
+                float re = (float)blockStart[idx].real();
+                float im = (float)blockStart[idx].imag();
 
                 m_workspace[idx].r = re * c - im * s;
                 m_workspace[idx].i = re * s + im * c;
@@ -100,10 +100,10 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
             // Point-wise complex multiplication (Correlation in Freq Domain)
             for (size_t idx = 0; idx < N; idx++)
             {
-                double a = m_workspace[idx].r;
-                double b = m_workspace[idx].i; // Fixed from .imag to .i
-                double c = currentCodeFft[idx].r;
-                double d = currentCodeFft[idx].i;
+                float a = m_workspace[idx].r;
+                float b = m_workspace[idx].i;
+                float c = currentCodeFft[idx].r;
+                float d = currentCodeFft[idx].i;
 
                 // (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
                 m_workspace[idx].r = a * c - b * d;
@@ -116,24 +116,24 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
             for (size_t idx = 0; idx < N; idx++)
             {
                 // Magnitude squared is faster and avoids sqrt in the inner loop
-                double r = m_workspace[idx].r;
-                double i = m_workspace[idx].i;
-                double mag = std::sqrt(r * r + i * i);
+                float r = m_workspace[idx].r;
+                float i = m_workspace[idx].i;
+                float mag = std::sqrt(r * r + i * i);
                 m_accumulatedMag[idx] += mag;
             }
         }
 
         // Peak detection (mag is currently sum of mags)
-        double maxMag = 0;
+        float maxMag = 0;
         int peakIndex = 0;
-        double sumPower = 0;
+        float sumPower = 0;
 
         for (size_t idx = 0; idx < N; idx++)
         {
             // Correct normalization for KissFFT:
             // The IFFT result is N times larger than the correlation result.
-            double mag = m_accumulatedMag[idx] / (double)(N * numBlocks);
-            double pwr = mag * mag;
+            float mag = m_accumulatedMag[idx] / (float)(N * numBlocks);
+            float pwr = mag * mag;
             sumPower += pwr;
 
             if (mag > maxMag)
@@ -143,9 +143,9 @@ AcqResult PCSEngine::search(int prn, const std::vector<std::complex<double>> &ra
             }
         }
 
-        double peakPower = maxMag * maxMag;
-        double avgNoisePower = (sumPower - peakPower) / (double)(N - 1);
-        double snr = (avgNoisePower > 1e-18) ? 10.0 * std::log10(peakPower / avgNoisePower) : -99.0;
+        float peakPower = maxMag * maxMag;
+        float avgNoisePower = (sumPower - peakPower) / (float)(N - 1);
+        float snr = (avgNoisePower > 1e-18) ? 10.0f * std::log10(peakPower / avgNoisePower) : -99.0f;
 
         if (snr > bestResult.snr)
         {

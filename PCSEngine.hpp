@@ -6,7 +6,8 @@
 #include <map>
 #include "NCO.h" // Must include this for m_nco member
 
-#define kiss_fft_scalar double
+#undef kiss_fft_scalar
+#define kiss_fft_scalar float
 #include "kiss_fft.h"
 
 struct AcqResult {
@@ -27,7 +28,7 @@ private:
 
     // These MUST be here for the .cpp to find them:
     std::vector<kiss_fft_cpx> m_workspace;
-    std::vector<double> m_accumulatedMag;
+    std::vector<float> m_accumulatedMag;
     std::map<int, std::vector<kiss_fft_cpx>> codeFfts;
 
 public:
