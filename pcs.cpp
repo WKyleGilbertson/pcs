@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <chrono>
 #include "version.h"
 #include "PCSEngine.hpp"
 
@@ -112,10 +113,23 @@ int main(int argc, char *argv[])
   for (int prn : prnsToSearch)
   {
     PCSEngine.initPrn(prn);
+
+    // Start timing
+    auto start = std::chrono::high_resolution_clock::now();
+
     AcqResult result = PCSEngine.search(prn, data, 4.092e6, 20, 500);
-    printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f\n",
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Calculate stats
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    int totalBins = (20 * 2) + 1; // -20 to +20 inclusive
+    double usPerBin = (double)duration / totalBins;
+
+    printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f | %6.1f ms (%4.0f us/bin)\n",
            prn, result.bin, result.bin * 500.0, result.peakIndex,
-           result.peakIndex / 16.0, result.snr);
+           result.peakIndex / 16.0, result.snr,
+           (double)duration / 1000.0, usPerBin);
   }
 
   return 0;
