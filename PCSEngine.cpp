@@ -17,7 +17,8 @@ PCSEngine::PCSEngine(double sampleFreq)
       m_nco(10, (float)sampleFreq),
       m_workspace(16384),
       m_accumulatedMag(16384),
-      m_codeFftCurrent(16384)
+      m_codeFftCurrent(16384),
+      m_ncoBuffer(16384) // Initialize m_ncoBuffer to size N (16384)
 {
     m_cfg_fwd = kiss_fft_alloc(16384, 0, NULL, NULL);
     m_cfg_inv = kiss_fft_alloc(16384, 1, NULL, NULL);
@@ -81,44 +82,33 @@ AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
 
         m_nco.SetFrequency(centerFreq + (bin * binWidth));
 
+        for (size_t idx = 0; idx < 16368; idx++)
+        {
+            uint32_t ncoIdx = m_nco.clk();
+            m_ncoBuffer[idx].r = (float)m_nco.cosine(ncoIdx);
+            m_ncoBuffer[idx].i = (float)m_nco.sine(ncoIdx);
+        }
+        // Force the padding to zero so it doesn't add noise during the mix
+        for (size_t idx = 16368; idx < N; idx++)
+        {
+            m_ncoBuffer[idx] = {0.0f, 0.0f};
+        }
+
         for (int b = 0; b < numBlocks; b++)
         {
-            // Now rawData is already kiss_fft_cpx, so no complex conversion needed
-           // const kiss_fft_cpx *blockStart = &rawData[b * 16368];
             const kiss_fft_cpx *blockStart = &rawData[b * N];
 
-            for (size_t idx = 0; idx < 16368; idx++)
-            {
-                uint32_t ncoIdx = m_nco.clk();
-                float c = (float)m_nco.cosine(ncoIdx);
-                float s = (float)m_nco.sine(ncoIdx);
+            // Stage 1: Mix with local NCO to baseband
+            complex_mix(m_workspace.data(), blockStart, m_ncoBuffer.data(), N);
 
-                float re = blockStart[idx].r;
-                float im = blockStart[idx].i;
-
-                m_workspace[idx].r = re * c - im * s;
-                m_workspace[idx].i = re * s + im * c;
-            }
-            // Zero-pad the remaining 16 samples to reach N=16384
-            for (size_t idx = 16368; idx < N; idx++)
-            {
-                m_workspace[idx].r = 0.0f;
-                m_workspace[idx].i = 0.0f;
-            }
-
+            // Stage 2: Forward FFT of the mixed signal
             kiss_fft(m_cfg_fwd, m_workspace.data(), m_workspace.data());
 
-            for (size_t idx = 0; idx < N; idx++)
-            {
-                float a = m_workspace[idx].r;
-                float b = m_workspace[idx].i;
-                float c = currentCodeFft[idx].r;
-                float d = currentCodeFft[idx].i;
+            // Stage 3: Frequency-domain correlation
+            complex_mix(m_workspace.data(), m_workspace.data(),
+                        currentCodeFft.data(), N);
 
-                m_workspace[idx].r = a * c - b * d;
-                m_workspace[idx].i = a * d + b * c;
-            }
-
+            // Stage 4: Inverse FFT to get correlation magnitudes
             kiss_fft(m_cfg_inv, m_workspace.data(), m_workspace.data());
 
             for (size_t idx = 0; idx < N; idx++)

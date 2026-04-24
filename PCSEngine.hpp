@@ -28,11 +28,23 @@ private:
     std::vector<kiss_fft_cpx> m_workspace;
     std::vector<float> m_accumulatedMag;
     std::vector<kiss_fft_cpx> m_codeFftCurrent; // <--- Add this line
+    std::vector<kiss_fft_cpx> m_ncoBuffer; // Initialize to size N (16384)
 
     kiss_fft_cfg m_cfg_fwd;
     kiss_fft_cfg m_cfg_inv;
 
     std::map<int, std::vector<kiss_fft_cpx>> codeFfts;
+
+    static inline void complex_mix(kiss_fft_cpx* out, const kiss_fft_cpx* a, 
+                                   const kiss_fft_cpx* b, size_t count) 
+    {
+        for (size_t i = 0; i < count; ++i) {
+            float r = a[i].r * b[i].r - a[i].i * b[i].i;
+            float im = a[i].r * b[i].i + a[i].i * b[i].r;
+            out[i].r = r;
+            out[i].i = im;
+        }
+    }
 
 public:
     PCSEngine(double sampleFreq);
