@@ -15,10 +15,10 @@ extern "C"
 PCSEngine::PCSEngine(double sampleFreq)
     : m_sampleFreq(sampleFreq),
       m_nco(10, (float)sampleFreq),
-      m_workspace(16384),
-      m_accumulatedMag(16384),
-      m_codeFftCurrent(16384),
-      m_ncoBuffer(16384) // Initialize m_ncoBuffer to size N (16384)
+      m_workspace(N),
+      m_accumulatedMag(N),
+      m_codeFftCurrent(N),
+      m_ncoBuffer(N) // Initialize m_ncoBuffer to size N (16384)
 {
     m_cfg_fwd = kiss_fft_alloc(16384, 0, NULL, NULL);
     m_cfg_inv = kiss_fft_alloc(16384, 1, NULL, NULL);

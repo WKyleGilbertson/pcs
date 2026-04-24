@@ -23,7 +23,7 @@ class PCSEngine
 private:
     double m_sampleFreq;
     NCO m_nco;
-    int N = 16384;
+    int N = 16384; // 2^14 = 16384, 16 more than 16386... zero padding for FFT
 
     std::vector<kiss_fft_cpx> m_workspace;
     std::vector<float> m_accumulatedMag;
