@@ -2,7 +2,7 @@
 CC = cl
 CXX = cl
 
-CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=float /nologo
+CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=int16_t /nologo
 LDFLAGS = /nologo
 
 # Versioning
@@ -18,13 +18,13 @@ TARGET = pcs.exe
 OBJS = pcs.obj NCO.obj g2init.obj PCSEngine.obj kiss_fft.obj AcqUtils.obj
 
 # Simplified escaping for MSVC
-DEFS = /DCURRENT_HASH=$(CURRENT_HASH) /DCURRENT_DATE=$(CURRENT_DATE) \
+DEFS = /DGIT_HASH=$(CURRENT_HASH) /DBUILD_DATE=$(CURRENT_DATE) \
 	/DAPP_NAME=$(CURRENT_NAME)
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) /Fe:$(TARGET) /link $(LDFLAGS)
+	$(CC) $(CFLAGS) $(OBJS) /Fe:$(TARGET) /link $(LDFLAGS) /DEBUG
 
 # Rule for AcqUtils specifically (includes DEFS)
 AcqUtils.obj: AcqUtils.cpp AcqUtils.hpp

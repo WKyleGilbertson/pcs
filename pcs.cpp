@@ -3,14 +3,30 @@
 #include <chrono>
 #include <future>
 #include <cstdio>
+#include <cstring>
 #include "PCSEngine.hpp"
 #include "AcqUtils.hpp"
+#include "version.h"
 
 int main(int argc, char *argv[])
 {
+    SWV V;
+    V.Major = MAJOR_VERSION; 
+    V.Minor = MINOR_VERSION;
+    V.Patch = PATCH_VERSION;
+    strncpy(V.GitCI, GIT_HASH, 40);
+    V.GitCI[40] = '\0'; // Ensure null-termination
+    strncpy(V.BuildDate, BUILD_DATE, 19);
+    V.BuildDate[19] = '\0'; // Ensure null-termination
+    strncpy(V.Name, APP_NAME, 49);
+    V.Name[49] = '\0'; // Ensure null-termination
+
+    fprintf(stdout, "%s GitCI:%s %s v%.1d.%.1d.%.1d\n",
+            V.Name, V.GitCI, V.BuildDate,
+            V.Major, V.Minor, V.Patch);
     // 1. Setup config and version info
     AcqUtils::Config config = AcqUtils::ParseArgs(argc, argv);
-    AcqUtils::PrintVersion();
+//    AcqUtils::PrintVersion();
 
     // 2. Load IF data
     std::vector<kiss_fft_cpx> data(16384 * config.numMs);
@@ -29,6 +45,7 @@ int main(int argc, char *argv[])
     for (int prn : config.prnsToSearch) {
         auto searchTask = [prn, &data]() -> AcqResult {
             ::PCSEngine threadEngine(16.368e6); 
+            //return threadEngine.search(prn, data, 4.092e6f, 20, 500.0f);
             return threadEngine.search(prn, data, 4.092e6f, 20, 500.0f);
         };
         futures.push_back({prn, std::async(std::launch::async, searchTask)});
