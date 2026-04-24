@@ -2,52 +2,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-
-// This macro is required to handle the '"value"' quoting from your Makefile.
-// It ensures the compiler treats the macros as valid string literals.
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-
 namespace AcqUtils {
-
-/*
-void PrintVersion() {
-    SWV V;
-    V.Major = MAJOR_VERSION;
-    V.Minor = MINOR_VERSION;
-    V.Patch = PATCH_VERSION;
-
-    // Use STR() to convert Makefile macros to strings safely
-//    const char* hashStr = STR(CURRENT_HASH);
-//    const char* dateStr = STR(CURRENT_DATE);
-//    const char* nameStr = STR(APP_NAME);
-
-    // Parse hex tag from hash string
-//    sscanf(hashStr, "%x", &V.GitTag);
-    
-    // Copy into struct buffers defined in version.h
-    #ifdef GIT_HASH
-    strncpy(V.GitCI, GIT_HASH, 40);
-//    strncpy(V.GitCI, hashStr, sizeof(V.GitCI) - 1);
-    V.GitCI[40] = '\0';
-    #endif
-    
-    #ifdef BUILD_DATE
-    strncpy(V.BuildDate, BUILD_DATE, 19);
-//    strncpy(V.BuildDate, dateStr, sizeof(V.BuildDate) - 1);
-    V.BuildDate[19] = '\0';
-    #endif
-    
-    #ifdef APP_NAME
-    strncpy(V.Name, APP_NAME, 20); 
-    V.Name[sizeof(V.Name) - 1] = '\0';
-    #endif
-
-    fprintf(stdout, "Parallel Code Search (PCS) Algorithm\n");
-    fprintf(stdout, "%s GitCI:%.7s %s v%d.%d.%d\n",
-            V.Name, V.GitCI, V.BuildDate,
-            (int)V.Major, (int)V.Minor, (int)V.Patch);
-}*/
 
 bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs) {
     FILE *IN = fopen(filename.c_str(), "rb");
@@ -93,8 +48,8 @@ bool LoadBinData(const std::string& filename, std::vector<kiss_fft_cpx>& data, i
         size_t offset = (size_t)ms * 16384;
         for (size_t i = 0; i < 16368; i++) {
             // Indexing is now safe because raw_buffer is explicitly an array
-            data[offset + i].r = (int16_t)raw_buffer[2 * i];
-            data[offset + i].i = (int16_t)raw_buffer[2 * i + 1];
+            data[offset + i].r = (float)raw_buffer[2 * i];
+            data[offset + i].i = (float)raw_buffer[2 * i + 1];
         }
         
         // Pad the remaining samples to reach the 16384 FFT size

@@ -2,7 +2,8 @@
 CC = cl
 CXX = cl
 
-CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=int16_t /nologo
+#CFLAGS = /Zi /EHsc /O2 /I. /Dkiss_fft_scalar=float /nologo
+CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=float /nologo
 LDFLAGS = /nologo
 
 # Versioning
@@ -24,7 +25,8 @@ DEFS = /DGIT_HASH=$(CURRENT_HASH) /DBUILD_DATE=$(CURRENT_DATE) \
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) /Fe:$(TARGET) /link $(LDFLAGS) /DEBUG
+	$(CC) $(CFLAGS) $(OBJS) /Fe:$(TARGET) /link $(LDFLAGS)
+#	$(CC) $(CFLAGS) $(OBJS) /Fe:$(TARGET) /link $(LDFLAGS) /DEBUG
 
 # Rule for AcqUtils specifically (includes DEFS)
 AcqUtils.obj: AcqUtils.cpp AcqUtils.hpp
