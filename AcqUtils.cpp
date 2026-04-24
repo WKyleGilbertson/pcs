@@ -48,8 +48,8 @@ bool LoadBinData(const std::string& filename, std::vector<kiss_fft_cpx>& data, i
         size_t offset = (size_t)ms * 16384;
         for (size_t i = 0; i < 16368; i++) {
             // Indexing is now safe because raw_buffer is explicitly an array
-            data[offset + i].r = (float)raw_buffer[2 * i];
-            data[offset + i].i = (float)raw_buffer[2 * i + 1];
+            data[offset + i].r = (int16_t)raw_buffer[2 * i] << 3;
+            data[offset + i].i = (int16_t)raw_buffer[2 * i + 1] << 3;
         }
         
         // Pad the remaining samples to reach the 16384 FFT size

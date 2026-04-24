@@ -2,8 +2,8 @@
 CC = cl
 CXX = cl
 
-#CFLAGS = /Zi /EHsc /O2 /I. /Dkiss_fft_scalar=float /nologo
-CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=float /nologo
+//CFLAGS = /Zi /EHsc /O2 /I. /Dkiss_fft_scalar=int16_t /DFIXED_POINT=16 /nologo
+CFLAGS = /EHsc /O2 /I. /Dkiss_fft_scalar=float /DFIXED_POINT=16 /nologo
 LDFLAGS = /nologo
 
 # Versioning

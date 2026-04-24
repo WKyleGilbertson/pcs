@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     // 2. Load IF data
     std::vector<kiss_fft_cpx> data(16384 * config.numMs);
-    if (!AcqUtils::LoadRawData(config.filename, data, config.numMs)) {
+    if (!AcqUtils::LoadBinData(config.filename, data, config.numMs)) {
         fprintf(stderr, "Error opening %s\n", config.filename.c_str());
         return 1;
     }

@@ -18,8 +18,7 @@ PCSEngine::PCSEngine(double sampleFreq)
       m_workspace(N),
       m_accumulatedMag(N),
       m_codeFftCurrent(N),
-//      m_ncoBuffer(N), // Initialize m_ncoBuffer to size N (16384)
-      CpxncoBuff(N) // Initialize CpxncoBuff to size N (16384)
+      m_ncoBuffer(N) // Initialize m_ncoBuffer to size N (16384)
 {
     m_cfg_fwd = kiss_fft_alloc(16384, 0, NULL, NULL);
     m_cfg_inv = kiss_fft_alloc(16384, 1, NULL, NULL);
@@ -41,16 +40,17 @@ void PCSEngine::initPrn(int prn)
     // 1. Fill 1ms exactly (16368 samples)
     for (size_t idx = 0; idx < 16368; idx++)
     {
-        m_codeFftCurrent[idx].r = (float)sv.CODE[idx / 16];
-        m_codeFftCurrent[idx].i = 0.0f;
+        //m_codeFftCurrent[idx].r = (int16_t)sv.CODE[idx / 16] * 16384;
+        m_codeFftCurrent[idx].r = (int16_t)sv.CODE[idx / 16] * 1024;
+        m_codeFftCurrent[idx].i = 0;
     }
 
     // 2. ZERO-PAD the remaining 16 samples to reach N=16384
     // This prevents the "Franken-chip" interference
     for (size_t idx = 16368; idx < N; idx++)
     {
-        m_codeFftCurrent[idx].r = 0.0f;
-        m_codeFftCurrent[idx].i = 0.0f;
+        m_codeFftCurrent[idx].r = 0;
+        m_codeFftCurrent[idx].i = 0;
     }
 
     // 3. Perform Forward FFT
@@ -59,7 +59,8 @@ void PCSEngine::initPrn(int prn)
     // 4. Conjugate (flipped Imaginary)
     for (size_t idx = 0; idx < N; idx++)
     {
-        m_codeFftCurrent[idx].i *= -1.0f;
+        // m_codeFftCurrent[idx].i *= -1.0f;
+        m_codeFftCurrent[idx].i = -m_codeFftCurrent[idx].i;
     }
 
     // 5. Store the clean, padded, frequency-domain replica
@@ -83,26 +84,12 @@ AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
 
         m_nco.SetFrequency(centerFreq + (bin * binWidth));
 
-   // Populate the Shadow Buffer
-for (size_t idx = 0; idx < 16368; idx++) {
-    uint32_t ncoIdx = m_nco.clk();
-    CpxncoBuff[idx].r = static_cast<short>(m_nco.cosine(ncoIdx) * 32767.0f);
-    CpxncoBuff[idx].i = static_cast<short>(m_nco.sine(ncoIdx) * 32767.0f);
-}
-
-// Zero-pad the integer NCO same as you did the float one
-for (size_t idx = 16368; idx < N; idx++) {
-    CpxncoBuff[idx].r = 0;
-    CpxncoBuff[idx].i = 0;
-}
-
-        /*
         for (size_t idx = 0; idx < 16368; idx++)
         {
             uint32_t ncoIdx = m_nco.clk();
             // Multiply float sin/cos by 32767 and cast to int16
-            m_ncoBuffer[idx].r = static_cast<int16_t>(m_nco.cosine(ncoIdx) * 32767.0f);
-            m_ncoBuffer[idx].i = static_cast<int16_t>(m_nco.sine(ncoIdx) * 32767.0f);
+            m_ncoBuffer[idx].r = static_cast<int16_t>(m_nco.cosine(ncoIdx) * 1024.0f);
+            m_ncoBuffer[idx].i = static_cast<int16_t>(m_nco.sine(ncoIdx) * 1024.0f);
         }
 
         // Zero out the padding using the struct members
@@ -111,43 +98,30 @@ for (size_t idx = 16368; idx < N; idx++) {
             m_ncoBuffer[idx].r = 0;
             m_ncoBuffer[idx].i = 0;
         }
-        */
-        /*        for (size_t idx = 0; idx < 16368; idx++)
-                {
-                    uint32_t ncoIdx = m_nco.clk();
-                    m_ncoBuffer[idx].r = (float)m_nco.cosine(ncoIdx);
-                    m_ncoBuffer[idx].i = (float)m_nco.sine(ncoIdx);
-                }
-                // Force the padding to zero so it doesn't add noise during the mix
-                for (size_t idx = 16368; idx < N; idx++)
-                {
-                    m_ncoBuffer[idx] = {0.0f, 0.0f};
-                } */
 
         for (int b = 0; b < numBlocks; b++)
         {
             const kiss_fft_cpx *blockStart = &rawData[b * N];
 
             // Stage 1: Mix with local NCO to baseband
-            //complex_mix(m_workspace.data(), blockStart, m_ncoBuffer.data(), N);
-            complex_mix_bridge(m_workspace.data(), 
-                              blockStart,
-                              CpxncoBuff.data(), N);    
+            complex_mix(m_workspace.data(), blockStart,
+                         m_ncoBuffer.data(), N, 2);
+            // complex_mix_bridge(m_workspace.data(), blockStart, CpxncoBuff.data(), N);
 
             // Stage 2: Forward FFT of the mixed signal
             kiss_fft(m_cfg_fwd, m_workspace.data(), m_workspace.data());
 
             // Stage 3: Frequency-domain correlation
             complex_mix(m_workspace.data(), m_workspace.data(),
-                        currentCodeFft.data(), N);
+                        currentCodeFft.data(), N, 0);
 
             // Stage 4: Inverse FFT to get correlation magnitudes
             kiss_fft(m_cfg_inv, m_workspace.data(), m_workspace.data());
 
             for (size_t idx = 0; idx < N; idx++)
             {
-                float r = m_workspace[idx].r;
-                float i = m_workspace[idx].i;
+                float r = (float)m_workspace[idx].r;
+                float i = (float)m_workspace[idx].i;
                 m_accumulatedMag[idx] += std::sqrtf(r * r + i * i);
             }
         }
@@ -155,7 +129,8 @@ for (size_t idx = 16368; idx < N; idx++) {
         float maxMag = 0.0f;
         int peakIndex = 0;
         float sumPower = 0.0f;
-        const float norm = 1.0f / (float)(N * numBlocks);
+        //const float norm = 1.0f / (float)(N * numBlocks);
+        const float norm = 1.0f / (float)(numBlocks);
 
         for (size_t idx = 0; idx < N; idx++)
         {
