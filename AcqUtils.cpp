@@ -4,31 +4,37 @@
 #include <iostream>
 namespace AcqUtils {
 
-bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs) {
+bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs, bool isFNLN) {
     FILE *IN = fopen(filename.c_str(), "rb");
     if (!IN) return false;
 
-    // Use a unique name to ensure no collision with other headers
-    int8_t raw_buffer[32768]; 
+    const size_t samplesPerMs = 16368;
+    const size_t fftSize = 16384;
+    const size_t bytesToRead = 8184; 
+
+    // Move buffer to the heap to prevent stack overflow/corruption
+    std::vector<uint8_t> ingest_buf(bytesToRead);
     
     for (int ms = 0; ms < numMs; ms++) {
-        // We pass the array name raw_buffer which is a pointer to the start
-        size_t bytesRead = fread(raw_buffer, 1, 32736, IN);
-        if (bytesRead < 32736) break;
+        // fread into the heap-allocated vector's data pointer
+        size_t bytesRead = fread(ingest_buf.data(), 1, bytesToRead, IN);
+        
+        if (bytesRead < bytesToRead) break;
 
-        size_t offset = (size_t)ms * 16384;
-        for (size_t i = 0; i < 16368; i++) {
-            // Indexing is now safe because raw_buffer is explicitly an array
-            data[offset + i].r = (float)raw_buffer[2 * i];
-            data[offset + i].i = (float)raw_buffer[2 * i + 1];
+        size_t offset = (size_t)ms * fftSize;
+        
+        for (size_t i = 0; i < bytesToRead; i++) {
+            // Unpack directly from the heap buffer
+            unpackL1IF(ingest_buf[i], data[offset + (2 * i)], data[offset + (2 * i) + 1], isFNLN);
         }
         
-        // Pad the remaining samples to reach the 16384 FFT size
-        for (size_t i = 16368; i < 16384; i++) {
-            data[offset + i].r = 0.0f;
-            data[offset + i].i = 0.0f;
+        // Zero-pad the remaining 16 samples
+        for (size_t i = samplesPerMs; i < fftSize; i++) {
+            data[offset + i].r = 0;
+            data[offset + i].i = 0;
         }
     }
+    
     fclose(IN);
     return true;
 }

@@ -24,13 +24,25 @@ int main(int argc, char *argv[])
     fprintf(stdout, "%s GitCI:%s %s v%.1d.%.1d.%.1d\n",
             V.Name, V.GitCI, V.BuildDate,
             V.Major, V.Minor, V.Patch);
+
+    printf("\n");
     // 1. Setup config and version info
     AcqUtils::Config config = AcqUtils::ParseArgs(argc, argv);
 //    AcqUtils::PrintVersion();
+    printf("Config: Filename=%s, NumMs=%d, PRNs=[", 
+           config.filename.c_str(), config.numMs);
+    for (size_t i = 0; i < config.prnsToSearch.size(); ++i) {
+        printf("%d", config.prnsToSearch[i]);
+        if (i < config.prnsToSearch.size() - 1) {
+            printf(", ");
+        }
+    }
+    printf("]\n");
 
     // 2. Load IF data
     std::vector<kiss_fft_cpx> data(16384 * config.numMs);
-    if (!AcqUtils::LoadBinData(config.filename, data, config.numMs)) {
+    if (!AcqUtils::LoadRawData(config.filename, data, config.numMs, true)) {
+    //if (!AcqUtils::LoadBinData(config.filename, data, config.numMs)) {
         fprintf(stderr, "Error opening %s\n", config.filename.c_str());
         return 1;
     }

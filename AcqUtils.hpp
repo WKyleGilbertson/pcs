@@ -17,7 +17,7 @@ namespace AcqUtils {
 
     void PrintVersion();
     Config ParseArgs(int argc, char *argv[]);
-    bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs);
+    bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs, bool isFNLN);
     bool LoadBinData(const std::string& filename, std::vector<kiss_fft_cpx>& data, int numMs);
     void PrintHeader();
     void PrintResult(int prn, const AcqResult& result);
