@@ -8,12 +8,18 @@
 #include "PCSEngine.hpp"
 
 namespace AcqUtils {
+
+enum class DataFormat { BIN, RAW_USB, RAW_BVF };
+
     struct Config {
         std::string filename = "IF.bin";
         int numMs = 1;
         std::vector<int> prnsToSearch;
-//        SWV V; // Uses the struct from version.h
+        DataFormat format = DataFormat::BIN;
+        bool showHelp = false; // <-- NEW
     };
+
+    void PrintUsage(const char* progName);
 
     void PrintVersion();
     Config ParseArgs(int argc, char *argv[]);
