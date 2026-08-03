@@ -12,7 +12,7 @@ namespace AcqUtils {
 enum class DataFormat { BIN, RAW_USB, RAW_BVF };
 
     struct Config {
-        std::string filename = "IF.bin";
+        std::string filename = "";
         int numMs = 1;
         std::vector<int> prnsToSearch;
         DataFormat format = DataFormat::BIN;

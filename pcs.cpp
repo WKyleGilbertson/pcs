@@ -29,11 +29,11 @@ int main(int argc, char *argv[])
 // 1. Setup config and version info
     AcqUtils::Config config = AcqUtils::ParseArgs(argc, argv);
 
-    // Intercept help request
-    if (config.showHelp) {
-        AcqUtils::PrintUsage(argv[0]);
-        return 0; // Exit successfully
-    }
+// Intercept help request or missing filename
+if (config.showHelp || config.filename.empty()) {
+    AcqUtils::PrintUsage(argv[0]);
+    return 1;
+}
 
 //  AcqUtils::PrintVersion();
     printf("Config: Filename=%s, NumMs=%d, PRNs=[", 

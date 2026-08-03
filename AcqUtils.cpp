@@ -39,7 +39,7 @@ bool LoadRawData(const std::string& filename, std::vector<kiss_fft_cpx>& data, i
         size_t offset = (size_t)ms * fftSize;
         
 auto map_bits = [](uint8_t mag, uint8_t sign) -> int16_t {
-            return (mag ? 3 : 1) * (sign ? -1 : 1);
+            return ((mag ? 3 : 1) * (sign ? -1 : 1)) << 3;
         };
 
         for (size_t i = 0; i < bytesToRead; i++) {
