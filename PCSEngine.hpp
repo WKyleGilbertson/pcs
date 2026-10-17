@@ -15,6 +15,7 @@
 struct AcqResult
 {
     int bin;
+    float dopplerHz;
     int peakIndex;
     double peakMagnitude;
     double snr;

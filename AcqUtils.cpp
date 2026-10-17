@@ -50,8 +50,10 @@ auto map_bits = [](uint8_t mag, uint8_t sign) -> int16_t {
             if (isBVF) {
                 // BVF Layout: {i1_s, i1_m, q1_s, q1_m, i0_s, i0_m, q0_s, q0_m}
                 s0.i = map_bits((b >> 0) & 1, (b >> 1) & 1); // Q (Imaginary)
+                //s0.i = 0;
                 s0.r = map_bits((b >> 2) & 1, (b >> 3) & 1); // I (Real)
                 s1.i = map_bits((b >> 4) & 1, (b >> 5) & 1); // Q (Imaginary)
+                //s1.i = 0;
                 s1.r = map_bits((b >> 6) & 1, (b >> 7) & 1); // I (Real)
             } else {
                 // USB Layout (isBVF == false)
@@ -166,6 +168,20 @@ Config ParseArgs(int argc, char *argv[]) {
 }
 
 void PrintHeader() {
+    printf("PRN | Bin | Freq Offset | Peak Index | Chip Phase | HW Chip | SNR (dB)\n");
+    printf("--------------------------------------------------------------------------\n");
+}
+
+void PrintResult(int prn, const AcqResult& result) {
+    float chipPhase = (float)result.peakIndex / 16.0f;
+    int hwChip = (1023 - (int)chipPhase + 2) % 1023;
+    if (hwChip < 0) hwChip += 1023;
+    printf("%3d | %3d | %11.0f | %10d | %10.2f | %7d | %6.2f\n",
+           prn, result.bin, result.dopplerHz, result.peakIndex,
+           chipPhase, hwChip, result.snr);
+}
+/*
+void PrintHeader() {
     printf("PRN | Bin | Freq Offset | Peak Index | Chip Phase | SNR (dB)\n");
     printf("------------------------------------------------------------------\n");
 }
@@ -174,6 +190,6 @@ void PrintResult(int prn, const AcqResult& result) {
     printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f\n",
            prn, result.bin, (float)result.bin * 500.0f, result.peakIndex,
            (float)result.peakIndex / 16.0f, result.snr);
-}
+} */
 
 } // namespace AcqUtils

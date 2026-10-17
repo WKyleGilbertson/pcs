@@ -70,6 +70,122 @@ void PCSEngine::initPrn(int prn)
 AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
                             float centerFreq, int binRange, float binWidth)
 {
+    AcqResult bestResult = {0, 0.0f, 0, -99.0, -99.0};
+    int numBlocks = (int)(rawData.size() / N);
+    if (numBlocks == 0)
+        return bestResult;
+
+    initPrn(prn);
+    const std::vector<kiss_fft_cpx> &currentCodeFft = codeFfts[prn];
+
+    auto test_frequency = [&](float dopplerHz, int binLabel) {
+        std::fill(m_accumulatedMag.begin(), m_accumulatedMag.end(), 0.0f);
+
+        m_nco.m_phase = 0;
+        m_nco.SetFrequency(centerFreq + dopplerHz);
+
+        for (size_t idx = 0; idx < 16368; idx++)
+        {
+            uint32_t ncoIdx = m_nco.clk();
+            // Conjugate local carrier (cos - j*sin) to downconvert (+IF + Doppler) to 0 Hz baseband
+            m_ncoBuffer[idx].r =  static_cast<int16_t>(m_nco.cosine(ncoIdx) * 1024.0f);
+            m_ncoBuffer[idx].i = -static_cast<int16_t>(m_nco.sine(ncoIdx) * 1024.0f);
+        }
+
+        for (size_t idx = 16368; idx < (size_t)N; idx++)
+        {
+            m_ncoBuffer[idx].r = 0;
+            m_ncoBuffer[idx].i = 0;
+        }
+
+        for (int b = 0; b < numBlocks; b++)
+        {
+            const kiss_fft_cpx *blockStart = &rawData[b * N];
+
+            // Stage 1: Mix with conjugated local NCO to baseband
+            complex_mix(m_workspace.data(), blockStart,
+                        m_ncoBuffer.data(), N, 2);
+
+            // Stage 2: Forward FFT of the mixed signal
+            kiss_fft(m_cfg_fwd, m_workspace.data(), m_workspace.data());
+
+            // Stage 3: Frequency-domain correlation
+            complex_mix(m_workspace.data(), m_workspace.data(),
+                        currentCodeFft.data(), N, 0);
+
+            // Stage 4: Inverse FFT to get correlation magnitudes
+            kiss_fft(m_cfg_inv, m_workspace.data(), m_workspace.data());
+
+            for (size_t idx = 0; idx < 16368; idx++)
+            {
+                float r = (float)m_workspace[idx].r;
+                float i = (float)m_workspace[idx].i;
+                m_accumulatedMag[idx] += std::sqrtf(r * r + i * i);
+            }
+        }
+
+        float maxMag = 0.0f;
+        int peakIndex = 0;
+        float sumPower = 0.0f;
+        const float norm = 1.0f / (float)(numBlocks);
+
+        for (size_t idx = 0; idx < 16368; idx++)
+        {
+            float mag = m_accumulatedMag[idx] * norm;
+            float pwr = mag * mag;
+            sumPower += pwr;
+
+            if (mag > maxMag)
+            {
+                maxMag = mag;
+                peakIndex = (int)idx;
+            }
+        }
+
+        // Exclude +/- 16 samples (+/- 1 chip) around the main peak for true noise floor
+        float peakAreaPower = 0.0f;
+        int excluded = 0;
+        for (int d = -16; d <= 16; ++d)
+        {
+            int idx = (peakIndex + d + 16368) % 16368;
+            float mag = m_accumulatedMag[idx] * norm;
+            peakAreaPower += mag * mag;
+            excluded++;
+        }
+
+        float peakPower = maxMag * maxMag;
+        float avgNoisePower = (sumPower > peakAreaPower)
+                                  ? ((sumPower - peakAreaPower) / (float)(16368 - excluded))
+                                  : 1.0f;
+        float snr = (avgNoisePower > 1e-12f) ? 10.0f * std::log10f(peakPower / avgNoisePower) : -99.0f;
+
+        if (snr > bestResult.snr)
+        {
+            bestResult = {binLabel, dopplerHz, peakIndex, maxMag, snr};
+        }
+    };
+
+    // Pass 1: Coarse 500 Hz sweep
+    for (int bin = -binRange; bin <= binRange; bin++)
+    {
+        test_frequency(bin * binWidth, bin);
+    }
+
+    // Pass 2: Vernier 125 Hz zoom around winning coarse bin
+    float coarseBestFreq = bestResult.dopplerHz;
+    for (float offset : {-250.0f, -125.0f, 125.0f, 250.0f})
+    {
+        float testFreq = coarseBestFreq + offset;
+        int roundedBin = (int)std::lround(testFreq / binWidth);
+        test_frequency(testFreq, roundedBin);
+    }
+
+    return bestResult;
+}
+/*
+AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
+                            float centerFreq, int binRange, float binWidth)
+{
     AcqResult bestResult = {0, 0, -99.0f, -99.0f};
     int numBlocks = (int)(rawData.size() / N);
     if (numBlocks == 0)
@@ -155,4 +271,4 @@ AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
         }
     }
     return bestResult;
-}
+} */
