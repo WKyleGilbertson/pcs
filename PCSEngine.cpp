@@ -82,7 +82,8 @@ AcqResult PCSEngine::search(int prn, const std::vector<kiss_fft_cpx> &rawData,
         std::fill(m_accumulatedMag.begin(), m_accumulatedMag.end(), 0.0f);
 
         m_nco.m_phase = 0;
-        m_nco.SetFrequency(centerFreq + dopplerHz);
+        //m_nco.SetFrequency(centerFreq + dopplerHz);
+        m_nco.SetFrequency(centerFreq - dopplerHz);
 
         for (size_t idx = 0; idx < 16368; idx++)
         {
