@@ -180,16 +180,5 @@ void PrintResult(int prn, const AcqResult& result) {
            prn, result.bin, result.dopplerHz, result.peakIndex,
            chipPhase, hwChip, result.snr);
 }
-/*
-void PrintHeader() {
-    printf("PRN | Bin | Freq Offset | Peak Index | Chip Phase | SNR (dB)\n");
-    printf("------------------------------------------------------------------\n");
-}
-
-void PrintResult(int prn, const AcqResult& result) {
-    printf("%3d | %4d | %10.0f | %10d | %10.2f | %6.2f\n",
-           prn, result.bin, (float)result.bin * 500.0f, result.peakIndex,
-           (float)result.peakIndex / 16.0f, result.snr);
-} */
 
 } // namespace AcqUtils
