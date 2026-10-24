@@ -10,7 +10,7 @@ LDFLAGS = /nologo
 # -- Metadata --
 # Note: Using your specific quoting style as requested
 CURRENT_HASH := '"$(shell git rev-parse HEAD)"'
-CURRENT_DATE := '"$(shell date /t)"'
+BUILD_DATE := '"$(shell date /t)"'
 CURRENT_NAME := '"pcs"'
 
 # Target and Objects
@@ -19,7 +19,7 @@ TARGET = pcs.exe
 OBJS = pcs.obj NCO.obj g2init.obj PCSEngine.obj kiss_fft.obj AcqUtils.obj
 
 # Simplified escaping for MSVC
-DEFS = /DGIT_HASH=$(CURRENT_HASH) /DBUILD_DATE=$(CURRENT_DATE) \
+DEFS = /DCURRENT_HASH=$(CURRENT_HASH) /DBUILD_DATE=$(BUILD_DATE) \
 	/DAPP_NAME=$(CURRENT_NAME)
 
 all: $(TARGET)
