@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdio>
 #include <cstring>
+#include <cstdint>
 
 #ifndef MAJOR_VERSION
 #define MAJOR_VERSION 0
@@ -22,8 +23,8 @@
 #endif
 
 typedef struct {
-    unsigned short int Major, Minor, Patch;
-    unsigned int GitTag;
+    std::uint8_t Major, Minor, Patch;
+    std::uint32_t GitTag;
     char GitCI[41];
     char BuildDate[17];
     char Name[13];
